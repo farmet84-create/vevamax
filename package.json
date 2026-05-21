@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Sistema inteligente de notificaciones de citas médicas ViveMax IPS con integración Medilink2 y Chatico WhatsApp",
   "main": "server.js",
+   "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
