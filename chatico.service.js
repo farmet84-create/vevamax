@@ -1,172 +1,53 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 
-const CHATICO_API_URL = process.env.CHATICO_API_URL || 'https://app.chatico.io/api/contacts';
-const CHATICO_TOKEN = process.env.CHATICO_ACCESS_TOKEN;
-const CHATICO_FLOW_ID = process.env.CHATICO_FLOW_ID;
+const client = axios.create({
+  baseURL: process.env.CHATICO_API_URL || 'https://app.chatico.io/api',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-ACCESS-TOKEN': process.env.CHATICO_ACCESS_TOKEN,
+  },
+  timeout: 10000,
+});
 
-const chaticoService = {
-  // ===== ENVIAR NOTIFICACIÓN VÍA WHATSAPP =====
-  enviarNotificacion: async (datosContacto, datosNotificacion) => {
+module.exports = {
+  async enviarNotificacionCita(cita) {
     try {
-      logger.info(`📤 Enviando notificación a ${datosContacto.telefono}`);
+      logger.info(`📱 Enviando notificación a ${cita.telefono}...`);
 
-      // Preparar payload para Chatico
       const payload = {
-        phone: datosContacto.telefono,
-        email: datosContacto.email || '',
-        first_name: datosContacto.nombre_paciente || '',
-        last_name: datosContacto.apellidos_paciente || '',
-        gender: 'M',
+        phone: cita.telefono,
+        email: cita.email || '',
+        first_name: cita.nombre_paciente || 'Paciente',
+        last_name: cita.apellidos_paciente || '',
         actions: [
-          {
-            action: 'add_tag',
-            tag_name: 'cita_medica'
-          },
-          {
-            action: 'set_field_value',
-            field_name: 'Campo_01',
-            value: datosNotificacion.fecha_cita || ''
-          },
-          {
-            action: 'set_field_value',
-            field_name: 'Campo_02',
-            value: datosNotificacion.hora_cita || ''
-          },
-          {
-            action: 'set_field_value',
-            field_name: 'Campo_03',
-            value: datosNotificacion.sede || ''
-          },
-          {
-            action: 'set_field_value',
-            field_name: 'Campo_04',
-            value: datosNotificacion.profesional || ''
-          },
-          {
-            action: 'set_field_value',
-            field_name: 'Campo_05',
-            value: datosNotificacion.id_cita_medilink2.toString()
-          },
-          {
-            action: 'send_flow',
-            flow_id: parseInt(CHATICO_FLOW_ID)
-          }
-        ]
+          { action: 'add_tag', tag_name: 'Cita_Proxima' },
+          { action: 'set_field_value', field_name: 'Campo_01', value: cita.id_cita?.toString() || '' },
+          { action: 'set_field_value', field_name: 'Campo_02', value: cita.fecha || '' },
+          { action: 'set_field_value', field_name: 'Campo_03', value: cita.hora_inicio || '' },
+          { action: 'set_field_value', field_name: 'Campo_04', value: cita.nombre_profesional || '' },
+          { action: 'set_field_value', field_name: 'Campo_05', value: cita.sede || '' },
+          { action: 'send_flow', flow_id: parseInt(process.env.CHATICO_FLOW_ID) },
+        ],
       };
 
-      const response = await axios.post(CHATICO_API_URL, payload, {
-        headers: {
-          'accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-ACCESS-TOKEN': CHATICO_TOKEN
-        },
-        timeout: 10000
-      });
-
-      logger.info(`✅ Notificación enviada exitosamente a ${datosContacto.telefono}`, {
-        contactId: response.data?.id,
-        response: response.data
-      });
-
-      return {
-        success: true,
-        contactId: response.data?.id || null,
-        response: response.data
-      };
+      const response = await client.post('/contacts', payload);
+      logger.info(`✅ Notificación enviada a ${cita.telefono}`);
+      return { success: true, message: 'Notificación enviada', data: response.data };
     } catch (error) {
-      logger.error(`❌ Error enviando notificación a ${datosContacto.telefono}:`, {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
-
-      return {
-        success: false,
-        error: error.message,
-        errorDetails: error.response?.data
-      };
+      logger.error(`❌ Error al enviar notificación:`, error.response?.data || error.message);
+      throw error;
     }
   },
 
-  // ===== PROCESAR RESPUESTA DEL WEBHOOK =====
-  procesarRespuestaWebhook: async (datosWebhook) => {
+  async crearContacto(datosContacto) {
     try {
-      logger.info('📥 Procesando respuesta del webhook de Chatico', {
-        respuesta: datosWebhook
-      });
-
-      // Mapear la respuesta a nuestro formato
-      const tipoRespuesta = mapearRespuestaChatico(datosWebhook.respuesta_usuario);
-      
-      return {
-        success: true,
-        tipoRespuesta: tipoRespuesta,
-        timestamp: new Date().toISOString()
-      };
+      logger.info('👤 Creando contacto en Chatico...');
+      const response = await client.post('/contacts', datosContacto);
+      return response.data;
     } catch (error) {
-      logger.error('Error procesando respuesta del webhook:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  },
-
-  // ===== VERIFICAR CONEXIÓN =====
-  verificarConexion: async () => {
-    try {
-      // Intentar obtener información del flow
-      logger.info('Verificando conexión con Chatico...');
-
-      // Chatico no tiene un endpoint de health check, 
-      // así que intentamos un request simple para validar el token
-      const payload = {
-        phone: '573046097929',
-        first_name: 'Test',
-        actions: [
-          {
-            action: 'add_tag',
-            tag_name: 'test'
-          }
-        ]
-      };
-
-      const response = await axios.post(CHATICO_API_URL, payload, {
-        headers: {
-          'X-ACCESS-TOKEN': CHATICO_TOKEN
-        },
-        timeout: 5000
-      });
-
-      if (response.status === 200 || response.status === 201) {
-        logger.info('✅ Conexión con Chatico exitosa');
-        return true;
-      }
-    } catch (error) {
-      if (error.response?.status === 401) {
-        logger.error('❌ Token de Chatico inválido');
-        return false;
-      }
-      logger.error('⚠️ Error verificando Chatico (puede ser timeout):', error.message);
-      return true; // Retornar true si no es auth error
+      logger.error('❌ Error al crear contacto:', error.message);
+      throw error;
     }
   }
 };
-
-// ===== FUNCIONES AUXILIARES =====
-function mapearRespuestaChatico(respuesta) {
-  const respuestaLower = respuesta?.toLowerCase().trim() || '';
-
-  if (respuestaLower.includes('si') || respuestaLower.includes('confirmo')) {
-    return 'si_confirmo';
-  } else if (respuestaLower.includes('no') || respuestaLower.includes('cancela')) {
-    return 'cancelar';
-  } else if (respuestaLower.includes('reprograma')) {
-    return 'reprogramar';
-  }
-
-  return 'desconocida';
-}
-
-module.exports = chaticoService;

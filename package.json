@@ -3,20 +3,11 @@
   "version": "1.0.0",
   "description": "Sistema inteligente de notificaciones de citas médicas ViveMax IPS con integración Medilink2 y Chatico WhatsApp",
   "main": "server.js",
-   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon server.js"
   },
-  "keywords": [
-    "vivemax",
-    "medilink2",
-    "chatico",
-    "whatsapp",
-    "citas",
-    "notificaciones"
-  ],
+  "keywords": ["vivemax", "medilink2", "chatico", "whatsapp", "citas"],
   "author": "ViveMax IPS",
   "license": "MIT",
   "dependencies": {
@@ -30,12 +21,15 @@
     "morgan": "^1.10.0",
     "body-parser": "^1.20.2",
     "moment": "^2.29.4",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
+    "nodemon": "^3.0.2",
     "pm2": "^5.3.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
   }
 }

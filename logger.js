@@ -2,7 +2,7 @@ const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
 
-const logsDir = './logs';
+const logsDir = path.join(__dirname, '../../logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
@@ -10,45 +10,30 @@ if (!fs.existsSync(logsDir)) {
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    winston.format.timestamp(),
     winston.format.errors({ stack: true }),
-    winston.format.json(),
-    winston.format.printf(({ timestamp, level, message, ...meta }) => {
-      let metaStr = '';
-      if (Object.keys(meta).length > 0) {
-        metaStr = JSON.stringify(meta);
-      }
-      return `${timestamp} [${level.toUpperCase()}]: ${message} ${metaStr}`;
-    })
+    winston.format.splat(),
+    winston.format.json()
   ),
   defaultMeta: { service: 'vivemax-ips' },
   transports: [
-    // Archivo de logs general
-    new winston.transports.File({ 
-      filename: path.join(logsDir, 'vivemax.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    }),
-    // Archivo de errores
     new winston.transports.File({
       filename: path.join(logsDir, 'error.log'),
-      level: 'error',
-      maxsize: 5242880,
-      maxFiles: 5
+      level: 'error'
     }),
-    // Consola en desarrollo
-    ...(process.env.NODE_ENV !== 'production' ? [new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    })] : [])
+    new winston.transports.File({
+      filename: path.join(logsDir, 'combined.log')
+    })
   ]
 });
 
-// Stream para Morgan
-logger.stream = {
-  write: (message) => logger.info(message)
-};
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    )
+  }));
+}
 
 module.exports = logger;
